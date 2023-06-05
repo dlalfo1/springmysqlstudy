@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- namespace는 @Mapper를 지정한다. -->
+<mapper namespace="com.gdu.app09.mapper.EmployeeListMapper">
+
+	<!-- DEPARTMENTS와 EMPLOYEES의 JOIN 결과를 저장할 resultMap 만들기 -->
+	<resultMap type="EmpDTO" id="EmpMap">
+		<id column="EMPLOYEE_ID" property="employeeId" />
+		<result column="FIRST_NAME" property="firstName" />
+		<result column="LAST_NAME" property="lastName" />
+		<result column="EMAIL" property="email" />
+		<result column="PHONE_NUMBER" property="phoneNumber" />
+		<result column="JOB_ID" property="jobId" />
+		<result column="HIRE_DATE" property="hireDate" />
+		<result column="SALARY" property="salary" />
+		<result column="COMMISSION_PCT" property="commissionPct" />
+		<result column="MANAGER_ID" property="managerId" />
+		<association javaType="DeptDTO" property="deptDTO">
+			<id column="DEPARTMENT_ID" property="departmentId" />
+			<result column="DEPARTMENT_NAME" property="departmentName" />
+			<result column="MANAGER_ID" property="managerId" />
+			<result column="LOACTION_ID" property="locationId" />
+		</association>
+	</resultMap>
+	
+	<select id="getEmployeeCount" resultType="int">
+		SELECT COUNT(*)
+		  FROM EMPLOYEES  
+	</select>
+	
+	<!-- 사원번호를 오름차순으로 정렬하고 행번호 붙인테이블을 A라고 별명지음 -->
+	<!-- being과 end는 변수처리하고 Map에 담아서 전해줄것이다. -->
+	<!-- DEPARTMENTS 테이블의 킴벌리웅앵이 DEPARTMENT_ID가 없음(NULL값). 그렇기 때문에 EMPLOYEES테이블을 전부 보여주기 위해 RIGHT OUTER JOIN하기.-->
+	<!-- IFNULL()를 사용해서 NULL값 대신 사용할 문구를 넣어줄 수 있다. -->
+	<!-- JOIN 조건은 ON절에 무조건 적어줘야 한다.  -->
+	<!-- FROM절 서브쿼리에서 정렬하고 행번호까지 붙인애를 A라고 이름줬으니 SELECT절 메인쿼리에선 모든 칼럼명에선 A별명을 사용한다. -->
+	<!-- 이런 복잡한 쿼리문이 나오면 변수처리한 부분을 임의로 지어주고 디벨로퍼에 복붙해서 실행시켜보기. -->
+	
+	<!-- 
+		#{ }와 ${ }의 차이
+		
+		#{} : 변수 값을 작은 따옴표(')로 묶어서 나타내준다. - 변수 값
+		ORDER BY EMPLOYEE_ID #{order} -> ORDER BY EMPLOYEE_ID 'ASC'로 처리되기 때문에 SQL문법 오류가 발생한다.
+		
+		${} : 변수 값을 따옴표로 묶지 않고 그대로 나타낸다. - 쿼리문의 키워드, 칼럼 
+		ORDER BY EMPLOYEE_ID ${order} -> ORDER BY EMPLOYEE_ID ASC 로 처리되기 때문에 SQL문법 오류가 발생하지 않는다..
+	
+	 -->
+	<select id="getEmployeeListUsingPagination" parameterType="Map" resultMap="EmpMap">
+		SELECT A.EMPLOYEE_ID, A.FIRST_NAME, A.LAST_NAME, A.EMAIL, A.PHONE_NUMBER, A.HIRE_DATE, A.JOB_ID, A.SALARY, A.COMMISSION_PCT, A.MANAGER_ID, IFNULL(A.DEPARTMENT_ID, 0) AS DEPARTMENT_ID, IFNULL(A.DEPARTMENT_NAME, 'None') AS DEPARTMENT_NAME
+		  FROM (SELECT E.EMPLOYEE_ID, E.FIRST_NAME, E.LAST_NAME, E.EMAIL, E.PHONE_NUMBER, E.HIRE_DATE, E.JOB_ID, E.SALARY, E.COMMISSION_PCT, E.MANAGER_ID, E.DEPARTMENT_ID, D.DEPARTMENT_NAME
+		          FROM DEPARTMENTS D RIGHT OUTER JOIN EMPLOYEES E
+		            ON D.DEPARTMENT_ID = E.DEPARTMENT_ID) A
+		 ORDER BY ${column} ${order}    
+		 LIMIT #{begin}, #{recordPerPage}  
+	</select>
+	
+	<!-- 스크롤할땐 정렬기준 미리 정해놓기(변수처리 X) -->
+	<select id="getEmployeeListUsingScroll" parameterType="Map" resultMap="EmpMap">
+		SELECT A.EMPLOYEE_ID, A.FIRST_NAME, A.LAST_NAME, A.EMAIL, A.PHONE_NUMBER, A.HIRE_DATE, A.JOB_ID, A.SALARY, A.COMMISSION_PCT, A.MANAGER_ID, IFNULL(A.DEPARTMENT_ID, 0) AS DEPARTMENT_ID, IFNULL(A.DEPARTMENT_NAME, 'None') AS DEPARTMENT_NAME
+		  FROM (SELECT E.EMPLOYEE_ID, E.FIRST_NAME, E.LAST_NAME, E.EMAIL, E.PHONE_NUMBER, E.HIRE_DATE, E.JOB_ID, E.SALARY, E.COMMISSION_PCT, E.MANAGER_ID, E.DEPARTMENT_ID, D.DEPARTMENT_NAME
+		          FROM DEPARTMENTS D RIGHT OUTER JOIN EMPLOYEES E
+		            ON D.DEPARTMENT_ID = E.DEPARTMENT_ID) A
+		 ORDER BY EMPLOYEE_ID ASC           
+		 LIMIT #{begin}, #{recordPerPage}
+	</select>
+	
+	<select id="getEmployeeListUsingSearch" parameterType="Map" resultMap="EmpMap">
+		SELECT A.EMPLOYEE_ID, A.FIRST_NAME, A.LAST_NAME, A.EMAIL, A.PHONE_NUMBER, A.HIRE_DATE, A.JOB_ID, A.SALARY, A.COMMISSION_PCT, A.MANAGER_ID, IFNULL(A.DEPARTMENT_ID, 0) AS DEPARTMENT_ID, IFNULL(A.DEPARTMENT_NAME, 'None') AS DEPARTMENT_NAME
+		  FROM (SELECT E.EMPLOYEE_ID, E.FIRST_NAME, E.LAST_NAME, E.EMAIL, E.PHONE_NUMBER, E.HIRE_DATE, E.JOB_ID, E.SALARY, E.COMMISSION_PCT, E.MANAGER_ID, E.DEPARTMENT_ID, D.DEPARTMENT_NAME
+		          FROM DEPARTMENTS D RIGHT OUTER JOIN EMPLOYEES E
+		            ON D.DEPARTMENT_ID = E.DEPARTMENT_ID 
+		        <where>
+		        	 <if test="column != '' and query != ''" >
+		        	 	${column} LIKE CONCAT('%', #{query},'%')
+		        	 </if>
+		        </where>) A
+		 ORDER BY E.EMPLOYEE_ID ASC    
+		 LIMIT #{begin}, #{recordPerPage}   
+		 
+	</select>
+	
+	<select id="getEmployeeSearchCount" parameterType="Map" resultType="int" >
+		SELECT COUNT(E.EMPLOYEE_ID)
+          FROM DEPARTMENTS D RIGHT OUTER JOIN EMPLOYEES E
+            ON D.DEPARTMENT_ID = E.DEPARTMENT_ID 
+       <where>
+       	 <if test="column != '' and query != ''" >
+       	 	${column} LIKE CONCAT('%', #{query}, '%')
+       	 </if>
+       </where>
+	</select>
+	
+	<select id="getAutoComplete" parameterType="Map" resultMap="EmpMap">
+		SELECT DISTINCT ${column}
+          FROM DEPARTMENTS D RIGHT OUTER JOIN EMPLOYEES E
+            ON D.DEPARTMENT_ID = E.DEPARTMENT_ID 
+	     WHERE ${column} LIKE CONCAT(#{query}, '%')	
+	</select>
+	
+	
+	
+		
+	
+	
+</mapper>
